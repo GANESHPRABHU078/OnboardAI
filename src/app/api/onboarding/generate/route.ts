@@ -60,8 +60,8 @@ Employee Profile:
 Generate 6-8 modules covering: company culture, security & compliance, team introduction, tools & infrastructure, role-specific technical training, project overview, and hands-on practice. Make the content detailed and realistic for an enterprise environment.`;
 
   try {
-    const ZAI = (await import('z-ai-web-dev-sdk')).default;
-    const zai = await ZAI.create();
+    const { getZAI } = await import('@/lib/zai');
+    const zai = await getZAI();
 
     const completion = await zai.chat.completions.create({
       messages: [

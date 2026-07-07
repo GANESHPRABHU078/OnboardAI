@@ -32,8 +32,8 @@ Topics: ${topicsStr}
 Generate exactly 10 questions. Mix multiple choice questions about the given topics relevant to the ${department} department. Each question should have exactly 4 options. Make questions ${difficulty} level difficulty.`;
 
   try {
-    const ZAI = (await import('z-ai-web-dev-sdk')).default;
-    const zai = await ZAI.create();
+    const { getZAI } = await import('@/lib/zai');
+    const zai = await getZAI();
 
     const completion = await zai.chat.completions.create({
       messages: [

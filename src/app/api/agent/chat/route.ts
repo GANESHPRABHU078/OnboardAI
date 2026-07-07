@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, unauthorizedResponse, serverErrorResponse } from '@/lib/auth';
 import { db } from '@/lib/db';
-import ZAI from 'z-ai-web-dev-sdk';
+import { getZAI } from '@/lib/zai';
 import {
   getOrCreateConversation,
   addConversationMessage,
@@ -392,7 +392,7 @@ Available tools you can use:
 async function callLLM(
   messages: { role: string; content: string }[],
 ): Promise<string> {
-  const zai = await ZAI.create();
+  const zai = await getZAI();
   const response = await zai.chat.completions.create({
     messages: messages as { role: 'system' | 'user' | 'assistant'; content: string }[],
     stream: false,
