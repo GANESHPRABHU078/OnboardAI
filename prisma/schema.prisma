@@ -1,0 +1,261 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  name          String
+  role          String   @default("employee") // admin, hr, employee
+  avatar        String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  employee      Employee?
+  auditLogs     AuditLog[]
+  sessions      Session[]
+  notifications Notification[]
+  tasks         Task[] @relation("UserTasks")
+  assignedTasks Task[] @relation("AssignedTasks")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Department {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  description String?
+  headName    String?
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  employees   Employee[]
+  policies    Policy[]
+}
+
+model Employee {
+  id              String       @id @default(cuid())
+  userId          String       @unique
+  employeeId      String       @unique // EMP-001
+  firstName       String
+  lastName        String
+  email           String
+  phone           String?
+  departmentId    String?
+  department      Department?  @relation(fields: [departmentId], references: [id])
+  position        String
+  role            String       @default("employee") // admin, hr, employee
+  experience      String       @default("junior") // junior, mid, senior, lead
+  skills          String       @default("[]") // JSON array
+  securityLevel   String       @default("standard") // standard, elevated, privileged
+  status          String       @default("active") // active, onboarding, completed, inactive
+  joinDate        DateTime     @default(now())
+  onboardingStart DateTime?
+  onboardingEnd   DateTime?
+  managerId       String?
+  manager         Employee?    @relation("ManagerReport", fields: [managerId], references: [id])
+  reports         Employee[]   @relation("ManagerReport")
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trainingPlans   TrainingPlan[]
+  quizResults     QuizResult[]
+  certificates    Certificate[]
+  progressRecords ProgressRecord[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model TrainingPlan {
+  id              String   @id @default(cuid())
+  employeeId      String
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  title           String
+  role            String
+  department      String
+  experience      String
+  objectives      String   // JSON array of learning objectives
+  modules         String   // JSON array of modules
+  duration        String   // e.g., "4 weeks"
+  requiredReading String   // JSON array
+  handsOnTasks    String   // JSON array
+  deliverables    String   // JSON array
+  milestones      String   // JSON array
+  status          String   @default("active") // active, completed, archived
+  generatedAt     DateTime @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Assessment {
+  id                String      @id @default(cuid())
+  title             String
+  trainingPlanId    String?
+  department        String?
+  difficulty        String      @default("medium") // easy, medium, hard
+  questions         String      // JSON array of questions
+  passingScore      Int         @default(70)
+  timeLimit         Int?        // minutes
+  learningObjectives String     // JSON array
+  isActive          Boolean     @default(true)
+  createdBy         String?
+  quizResults       QuizResult[]
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+}
+
+model QuizResult {
+  id           String     @id @default(cuid())
+  assessmentId String
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  employeeId   String
+  employee     Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  score        Int
+  totalQuestions Int
+  correctAnswers Int
+  answers      String     // JSON array
+  passed       Boolean
+  timeTaken    Int?       // seconds
+  startedAt    DateTime   @default(now())
+  completedAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Certificate {
+  id           String   @id @default(cuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  title        String
+  description  String
+  trainingPlanId String?
+  assessmentId String?
+  issuedAt     DateTime @default(now())
+  approvedBy   String?
+  approvedAt   DateTime?
+  status       String   @default("pending") // pending, approved, rejected
+  certificateUrl String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ProgressRecord {
+  id           String   @id @default(cuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  moduleTitle  String
+  moduleIndex  Int
+  status       String   @default("pending") // pending, in_progress, completed
+  score        Int?
+  completedAt  DateTime?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Policy {
+  id           String     @id @default(cuid())
+  title        String
+  description  String?
+  content      String
+  category     String     @default("general") // security, compliance, hr, it, engineering
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  version      String     @default("1.0")
+  isActive     Boolean    @default(true)
+  createdBy    String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Handbook {
+  id          String   @id @default(cuid())
+  title       String
+  fileName    String
+  fileUrl     String
+  fileType    String   // pdf, docx, txt
+  fileSize    Int
+  content     String?  // extracted text
+  uploadedBy  String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  embeddings  Embedding[]
+}
+
+model Embedding {
+  id          String   @id @default(cuid())
+  handbookId  String
+  handbook    Handbook @relation(fields: [handbookId], references: [id], onDelete: Cascade)
+  chunkIndex  Int
+  content     String
+  embedding   String   // JSON array of floats (stored as string for SQLite)
+  createdAt   DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  resource  String
+  details   String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+}
+
+model SystemSetting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+  type  String @default("string") // string, number, boolean, json
+  description String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  message     String
+  type        String   @default("info") // info, success, warning, error, reminder
+  category    String   @default("general") // onboarding, assessment, certificate, system, task
+  isRead      Boolean  @default(false)
+  link        String?
+  metadata    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation("UserTasks", fields: [userId], references: [id], onDelete: Cascade)
+  assigneeId  String?
+  assignee    User?    @relation("AssignedTasks", fields: [assigneeId], references: [id], onDelete: SetNull)
+  title       String
+  description String?
+  type        String   @default("onboarding") // onboarding, assessment, compliance, general
+  priority    String   @default("medium") // low, medium, high, urgent
+  status      String   @default("todo") // todo, in_progress, review, done
+  dueDate     DateTime?
+  completedAt DateTime?
+  tags        String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

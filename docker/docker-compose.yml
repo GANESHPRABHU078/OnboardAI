@@ -1,0 +1,37 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: onboardai-app
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/data/custom.db
+      - JWT_SECRET=${JWT_SECRET:-enterprise-onboarding-secret-key-change-in-production}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - app-data:/app/data
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/auth/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nginx:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.nginx
+    container_name: onboardai-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  app-data:
