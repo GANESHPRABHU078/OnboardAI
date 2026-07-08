@@ -41,7 +41,20 @@ export async function getZAI(): Promise<ZAI> {
           // Ignore parsing errors
         }
       }
-      return originalFetch.call(this, finalInput, init);
+      try {
+        const response = await originalFetch.call(this, finalInput, init);
+        if (!response.ok) {
+          const clonedRes = response.clone();
+          const errBody = await clonedRes.text().catch(() => '');
+          throw new Error(`[URL: ${finalInput}] API request failed with status ${response.status}: ${errBody}`);
+        }
+        return response;
+      } catch (err: any) {
+        if (err.message && err.message.includes('[URL:')) {
+          throw err;
+        }
+        throw new Error(`[URL: ${finalInput}] ${err.message || err}`);
+      }
     };
   }
 
