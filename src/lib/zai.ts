@@ -13,9 +13,20 @@ export async function getZAI(): Promise<ZAI> {
       if (typeof finalInput === 'string') {
         // Clean up double slashes (e.g., "openai//chat" -> "openai/chat") but keep the "https://" prefix intact.
         finalInput = finalInput.replace(/([^:]\/)\/+/g, '$1');
-        // Force the Google Gemini OpenAI-compatible path to use v1beta (where models are registered) instead of v1.
-        if (finalInput.includes('generativelanguage.googleapis.com/v1/openai')) {
-          finalInput = finalInput.replace('generativelanguage.googleapis.com/v1/openai', 'generativelanguage.googleapis.com/v1beta/openai');
+        
+        // Force the Google Gemini OpenAI-compatible path to use /v1beta/openai
+        if (finalInput.includes('generativelanguage.googleapis.com')) {
+          try {
+            const urlObj = new URL(finalInput);
+            // Replace /v1/openai, /v1beta/openai, /v1, or /v1beta at the start of the path
+            let path = urlObj.pathname;
+            path = path.replace(/^\/(v1beta\/openai|v1\/openai|v1beta|v1)/, '');
+            urlObj.pathname = '/v1beta/openai' + path;
+            finalInput = urlObj.toString();
+          } catch {
+            // Fallback to regex if parsing fails
+            finalInput = finalInput.replace(/generativelanguage\.googleapis\.com\/(v1beta|v1)(\/openai)?/, 'generativelanguage.googleapis.com/v1beta/openai');
+          }
         }
       }
 
