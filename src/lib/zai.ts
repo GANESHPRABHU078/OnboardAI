@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 export async function getZAI(): Promise<ZAI> {
+  throw new Error('DEBUG_LATEST_CODE_ACTIVE');
   // Install a fetch interceptor to strip the unsupported 'thinking' parameter from outgoing requests
   // This allows compatibility with strict APIs (like Google Gemini or Groq) that return a 400 error on unrecognized parameters.
   if (!(globalThis as any).__zai_fetch_interceptor_installed__) {
