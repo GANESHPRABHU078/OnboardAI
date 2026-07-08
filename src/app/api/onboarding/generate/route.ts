@@ -64,6 +64,7 @@ Generate 6-8 modules covering: company culture, security & compliance, team intr
     const zai = await getZAI();
 
     const completion = await zai.chat.completions.create({
+      model: process.env.ZAI_MODEL || 'gpt-4o-mini',
       messages: [
         {
           role: 'assistant',

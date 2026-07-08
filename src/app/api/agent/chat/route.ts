@@ -394,6 +394,7 @@ async function callLLM(
 ): Promise<string> {
   const zai = await getZAI();
   const response = await zai.chat.completions.create({
+    model: process.env.ZAI_MODEL || 'gpt-4o-mini',
     messages: messages as { role: 'system' | 'user' | 'assistant'; content: string }[],
     stream: false,
   });
