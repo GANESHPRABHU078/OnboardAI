@@ -398,11 +398,24 @@ async function callLLM(
     messages: messages as { role: 'system' | 'user' | 'assistant'; content: string }[],
     stream: false,
   });
+
   if (response?.choices?.[0]?.message?.content) {
     return response.choices[0].message.content as string;
   }
+
+  // Handle case where OpenRouter/Model returns an error block instead of content
+  if (response && typeof response === 'object') {
+    const respAny = response as any;
+    if (respAny.error && respAny.error.message) {
+      throw new Error(respAny.error.message);
+    }
+    if (respAny.choices?.[0]?.finish_reason === 'error') {
+      throw new Error('The model encountered an error during generation.');
+    }
+  }
+
   if (typeof response === 'string') return response;
-  return JSON.stringify(response);
+  throw new Error('No content returned from the AI model.');
 }
 
 // ---------------------------------------------------------------------------
