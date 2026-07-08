@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, unauthorizedResponse, serverErrorResponse } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { getZAI } from '@/lib/zai';
+import { getZAI, callLLM } from '@/lib/zai';
 import {
   getOrCreateConversation,
   addConversationMessage,
@@ -387,36 +387,6 @@ Available tools you can use:
 `;
 
 // ---------------------------------------------------------------------------
-// LLM helper
-// ---------------------------------------------------------------------------
-async function callLLM(
-  messages: { role: string; content: string }[],
-): Promise<string> {
-  const zai = await getZAI();
-  const response = await zai.chat.completions.create({
-    model: process.env.ZAI_MODEL || 'gpt-4o-mini',
-    messages: messages as { role: 'system' | 'user' | 'assistant'; content: string }[],
-    stream: false,
-  });
-
-  if (response?.choices?.[0]?.message?.content) {
-    return response.choices[0].message.content as string;
-  }
-
-  // Handle case where OpenRouter/Model returns an error block instead of content
-  if (response && typeof response === 'object') {
-    const respAny = response as any;
-    if (respAny.error && respAny.error.message) {
-      throw new Error(respAny.error.message);
-    }
-    if (respAny.choices?.[0]?.finish_reason === 'error') {
-      throw new Error('The model encountered an error during generation.');
-    }
-  }
-
-  if (typeof response === 'string') return response;
-  throw new Error('No content returned from the AI model.');
-}
 
 // ---------------------------------------------------------------------------
 // System prompt builder

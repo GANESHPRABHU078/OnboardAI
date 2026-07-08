@@ -60,21 +60,14 @@ Employee Profile:
 Generate 6-8 modules covering: company culture, security & compliance, team introduction, tools & infrastructure, role-specific technical training, project overview, and hands-on practice. Make the content detailed and realistic for an enterprise environment.`;
 
   try {
-    const { getZAI } = await import('@/lib/zai');
-    const zai = await getZAI();
-
-    const completion = await zai.chat.completions.create({
-      model: process.env.ZAI_MODEL || 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'assistant',
-          content: 'You are an expert enterprise onboarding plan generator. Always respond with valid JSON only, no markdown formatting.',
-        },
-        { role: 'user', content: prompt },
-      ],
-    });
-
-    const content = completion.choices?.[0]?.message?.content || '';
+    const { callLLM } = await import('@/lib/zai');
+    const content = await callLLM([
+      {
+        role: 'assistant',
+        content: 'You are an expert enterprise onboarding plan generator. Always respond with valid JSON only, no markdown formatting.',
+      },
+      { role: 'user', content: prompt },
+    ]);
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);

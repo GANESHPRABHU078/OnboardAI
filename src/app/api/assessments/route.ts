@@ -32,21 +32,14 @@ Topics: ${topicsStr}
 Generate exactly 10 questions. Mix multiple choice questions about the given topics relevant to the ${department} department. Each question should have exactly 4 options. Make questions ${difficulty} level difficulty.`;
 
   try {
-    const { getZAI } = await import('@/lib/zai');
-    const zai = await getZAI();
-
-    const completion = await zai.chat.completions.create({
-      model: process.env.ZAI_MODEL || 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'assistant',
-          content: 'You are an expert assessment creator. Always respond with valid JSON only, no markdown formatting.',
-        },
-        { role: 'user', content: prompt },
-      ],
-    });
-
-    const content = completion.choices?.[0]?.message?.content || '';
+    const { callLLM } = await import('@/lib/zai');
+    const content = await callLLM([
+      {
+        role: 'assistant',
+        content: 'You are an expert assessment creator. Always respond with valid JSON only, no markdown formatting.',
+      },
+      { role: 'user', content: prompt },
+    ]);
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);
