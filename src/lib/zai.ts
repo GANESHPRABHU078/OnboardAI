@@ -28,6 +28,7 @@ export async function getZAI(): Promise<ZAI> {
 
   if (!apiKey) {
     console.warn('WARNING: Neither ZAI_API_KEY nor OPENAI_API_KEY environment variables are defined. ZAI operations might fail.');
+    throw new Error('ZAI_API_KEY is not defined. Please configure ZAI_API_KEY or OPENAI_API_KEY in your environment variables.');
   }
 
   const config = {

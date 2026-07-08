@@ -80,7 +80,10 @@ Generate 6-8 modules covering: company culture, security & compliance, team intr
     }
     throw new Error('No valid JSON found in AI response');
   } catch (error) {
-    console.error('AI generation error, using fallback:', error);
+    console.error('AI generation error:', error);
+    if (error instanceof Error && error.message.includes('ZAI_API_KEY is not defined')) {
+      throw error;
+    }
     return generateFallbackPlan(profile);
   }
 }
@@ -260,6 +263,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ plan: trainingPlan, generated: plan }, { status: 201 });
   } catch (error) {
     console.error('Generate onboarding error:', error);
+    if (error instanceof Error && error.message.includes('ZAI_API_KEY is not defined')) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     return serverErrorResponse('Failed to generate onboarding plan');
   }
 }

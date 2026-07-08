@@ -52,7 +52,10 @@ Generate exactly 10 questions. Mix multiple choice questions about the given top
     }
     throw new Error('No valid JSON found in AI response');
   } catch (error) {
-    console.error('AI assessment generation error, using fallback:', error);
+    console.error('AI assessment generation error:', error);
+    if (error instanceof Error && error.message.includes('ZAI_API_KEY is not defined')) {
+      throw error;
+    }
     return generateFallbackAssessment(department, difficulty, topics);
   }
 }
@@ -340,6 +343,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ assessment }, { status: 201 });
   } catch (error) {
     console.error('Create assessment error:', error);
+    if (error instanceof Error && error.message.includes('ZAI_API_KEY is not defined')) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     return serverErrorResponse('Failed to create assessment');
   }
 }

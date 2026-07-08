@@ -714,11 +714,18 @@ Join Date: ${employee.joinDate.toISOString().split('T')[0]}`;
       } catch (error) {
         console.error(`Agent loop error (round ${round}):`, error);
 
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        if (error instanceof Error && error.message.includes('ZAI_API_KEY is not defined')) {
+          finalAnswer = `### ⚠️ Configuration Required\n\nThe AI Agent is missing its API key. Please add the \`ZAI_API_KEY\` (or \`OPENAI_API_KEY\`) environment variable in your Vercel project dashboard settings under **Settings > Environment Variables**, and then redeploy your application.`;
+          break;
+        }
+
         // Graceful fallback — never crash
         if (toolCallResults.length > 0) {
           finalAnswer = `I retrieved some information for you. Here's what I found:\n\n${toolCallResults.map((t) => `**${t.tool}**: ${t.result}`).join('\n\n')}`;
         } else {
-          finalAnswer = `I'm sorry, I encountered an issue processing your request. Here's what I can tell you:\n\n- Your onboarding status: ${employee?.status || 'N/A'}\n- Your department: ${employee?.department?.name || 'N/A'}\n\nPlease try again or ask a different question.`;
+          finalAnswer = `I'm sorry, I encountered an issue processing your request.\n\n**Error details**: \`${errorMessage}\`\n\n- Your onboarding status: ${employee?.status || 'N/A'}\n- Your department: ${employee?.department?.name || 'N/A'}\n\nPlease try again or ask a different question.`;
         }
         break;
       }
