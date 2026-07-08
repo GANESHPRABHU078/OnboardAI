@@ -13,6 +13,10 @@ export async function getZAI(): Promise<ZAI> {
       if (typeof finalInput === 'string') {
         // Clean up double slashes (e.g., "openai//chat" -> "openai/chat") but keep the "https://" prefix intact.
         finalInput = finalInput.replace(/([^:]\/)\/+/g, '$1');
+        // Force the Google Gemini OpenAI-compatible path to use v1beta (where models are registered) instead of v1.
+        if (finalInput.includes('generativelanguage.googleapis.com/v1/openai')) {
+          finalInput = finalInput.replace('generativelanguage.googleapis.com/v1/openai', 'generativelanguage.googleapis.com/v1beta/openai');
+        }
       }
 
       if (init && init.body && typeof init.body === 'string') {
