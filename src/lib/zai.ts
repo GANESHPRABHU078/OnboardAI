@@ -9,6 +9,12 @@ export async function getZAI(): Promise<ZAI> {
     (globalThis as any).__zai_fetch_interceptor_installed__ = true;
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async function (input: RequestInfo | URL, init?: RequestInit) {
+      let finalInput = input;
+      if (typeof finalInput === 'string') {
+        // Clean up double slashes (e.g., "openai//chat" -> "openai/chat") but keep the "https://" prefix intact.
+        finalInput = finalInput.replace(/([^:]\/)\/+/g, '$1');
+      }
+
       if (init && init.body && typeof init.body === 'string') {
         try {
           const bodyObj = JSON.parse(init.body);
@@ -20,7 +26,7 @@ export async function getZAI(): Promise<ZAI> {
           // Ignore parsing errors
         }
       }
-      return originalFetch.call(this, input, init);
+      return originalFetch.call(this, finalInput, init);
     };
   }
 
