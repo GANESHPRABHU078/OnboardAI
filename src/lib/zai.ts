@@ -9,24 +9,93 @@ export async function getZAI(): Promise<ZAI> {
     (globalThis as any).__zai_fetch_interceptor_installed__ = true;
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async function (input: RequestInfo | URL, init?: RequestInit) {
+      const urlStr = typeof input === 'string' ? input : input.toString();
+      
+      // Clean up double slashes if present in non-parsed inputs
       let finalInput = input;
       if (typeof finalInput === 'string') {
-        // Clean up double slashes (e.g., "openai//chat" -> "openai/chat") but keep the "https://" prefix intact.
         finalInput = finalInput.replace(/([^:]\/)\/+/g, '$1');
-        
-        // Force the Google Gemini OpenAI-compatible path to use /v1beta/openai
-        if (finalInput.includes('generativelanguage.googleapis.com')) {
-          try {
-            const urlObj = new URL(finalInput);
-            // Replace /v1/openai, /v1beta/openai, /v1, or /v1beta at the start of the path
-            let path = urlObj.pathname;
-            path = path.replace(/^\/(v1beta\/openai|v1\/openai|v1beta|v1)/, '');
-            urlObj.pathname = '/v1beta/openai' + path;
-            finalInput = urlObj.toString();
-          } catch {
-            // Fallback to regex if parsing fails
-            finalInput = finalInput.replace(/generativelanguage\.googleapis\.com\/(v1beta|v1)(\/openai)?/, 'generativelanguage.googleapis.com/v1beta/openai');
+      }
+
+      // If hitting Gemini via OpenAI compatible base URL, intercept and translate to native Gemini API
+      if (urlStr.includes('generativelanguage.googleapis.com')) {
+        try {
+          const authHeader = (init?.headers as any)?.['Authorization'] || (init?.headers as any)?.['authorization'] || '';
+          const apiKey = authHeader.replace(/^Bearer\s+/, '').trim();
+          
+          if (init && init.body && typeof init.body === 'string') {
+            const openaiBody = JSON.parse(init.body);
+            let model = openaiBody.model || 'gemini-1.5-flash';
+            model = model.replace(/^models\//, ''); // Clean model prefix if present
+
+            let systemInstruction = '';
+            const contents = [];
+
+            for (const msg of openaiBody.messages || []) {
+              if (msg.role === 'system') {
+                systemInstruction += (systemInstruction ? '\n' : '') + msg.content;
+              } else {
+                contents.push({
+                  role: msg.role === 'assistant' ? 'model' : 'user',
+                  parts: [{ text: msg.content }]
+                });
+              }
+            }
+
+            const geminiBody: any = { contents };
+            if (systemInstruction) {
+              geminiBody.systemInstruction = {
+                parts: [{ text: systemInstruction }]
+              };
+            }
+            if (openaiBody.temperature !== undefined) {
+              geminiBody.generationConfig = {
+                temperature: openaiBody.temperature,
+                maxOutputTokens: openaiBody.max_tokens,
+              };
+            }
+
+            const targetUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            const response = await originalFetch(targetUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(geminiBody)
+            });
+
+            if (!response.ok) {
+              const errBody = await response.text().catch(() => '');
+              throw new Error(`Gemini native API failed with status ${response.status}: ${errBody}`);
+            }
+
+            const geminiRes = await response.json();
+            const text = geminiRes.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+            const openaiRes = {
+              id: 'chatcmpl-' + Math.random().toString(36).slice(2, 9),
+              object: 'chat.completion',
+              created: Math.floor(Date.now() / 1000),
+              model: model,
+              choices: [
+                {
+                  index: 0,
+                  message: {
+                    role: 'assistant',
+                    content: text
+                  },
+                  finish_reason: 'stop'
+                }
+              ]
+            };
+
+            return new Response(JSON.stringify(openaiRes), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' }
+            });
           }
+        } catch (e: any) {
+          throw new Error(`[Gemini Native Adapter Error] ${e.message}`);
         }
       }
 
@@ -41,6 +110,7 @@ export async function getZAI(): Promise<ZAI> {
           // Ignore parsing errors
         }
       }
+
       try {
         const response = await originalFetch.call(this, finalInput, init);
         if (!response.ok) {
