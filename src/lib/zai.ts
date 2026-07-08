@@ -94,3 +94,65 @@ export async function getZAI(): Promise<ZAI> {
   // Instantiate ZAI directly to bypass loadConfig file check
   return new ZAI(config);
 }
+
+export async function callLLM(
+  messages: { role: string; content: string }[],
+): Promise<string> {
+  const models = [
+    process.env.ZAI_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
+    'google/gemma-4-31b-it:free',
+    'liquid/lfm-2.5-1.2b-instruct:free',
+    'openai/gpt-oss-120b:free',
+    'nousresearch/hermes-3-llama-3.1-405b:free',
+    'meta-llama/llama-3.2-3b-instruct:free'
+  ].filter((v, i, a) => a.indexOf(v) === i);
+
+  let lastError: any = null;
+
+  for (const modelName of models) {
+    let retries = 2;
+    while (retries > 0) {
+      try {
+        const zai = await getZAI();
+        const response = await zai.chat.completions.create({
+          model: modelName,
+          messages: messages as { role: 'system' | 'user' | 'assistant'; content: string }[],
+          stream: false,
+        });
+
+        if (response?.choices?.[0]?.message?.content) {
+          return response.choices[0].message.content as string;
+        }
+
+        if (response && typeof response === 'object') {
+          const respAny = response as any;
+          if (respAny.error && respAny.error.message) {
+            throw new Error(respAny.error.message);
+          }
+          if (respAny.choices?.[0]?.finish_reason === 'error') {
+            throw new Error('The model encountered an error during generation.');
+          }
+        }
+
+        if (typeof response === 'string') return response;
+        throw new Error('No content returned.');
+      } catch (err: any) {
+        lastError = err;
+        const errMsg = err.message || '';
+        
+        // If it's a rate limit (429), wait and retry
+        if (errMsg.includes('429') || errMsg.includes('rate-limit') || errMsg.includes('Rate Limit') || errMsg.includes('rate_limit')) {
+          console.warn(`Model ${modelName} is rate limited. Retrying in 3 seconds... (${retries} left)`);
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          retries--;
+        } else {
+          // If it's a 404 or other non-rate-limit error, fail immediately and try the next model
+          break;
+        }
+      }
+    }
+    console.warn(`Model ${modelName} failed or rate-limited. Trying next fallback model...`);
+  }
+
+  throw lastError || new Error('All fallback models failed.');
+}
