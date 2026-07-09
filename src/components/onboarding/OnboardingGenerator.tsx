@@ -417,22 +417,28 @@ export default function OnboardingGenerator() {
                                 <p className="text-sm text-muted-foreground leading-relaxed">
                                   {mod.description}
                                 </p>
-                                {mod.content && mod.content.length > 0 && (
+                                {mod.content && (
                                   <div>
                                     <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
                                       Content
                                     </p>
-                                    <ul className="space-y-1.5">
-                                      {mod.content.map((c, ci) => (
-                                        <li
-                                          key={ci}
-                                          className="flex items-start gap-2 text-sm"
-                                        >
-                                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" />
-                                          {c}
-                                        </li>
-                                      ))}
-                                    </ul>
+                                    {Array.isArray(mod.content) ? (
+                                      <ul className="space-y-1.5">
+                                        {mod.content.map((c, ci) => (
+                                          <li
+                                            key={ci}
+                                            className="flex items-start gap-2 text-sm"
+                                          >
+                                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                                            {c}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    ) : (
+                                      <p className="text-sm text-muted-foreground leading-relaxed">
+                                        {mod.content}
+                                      </p>
+                                    )}
                                   </div>
                                 )}
                               </div>

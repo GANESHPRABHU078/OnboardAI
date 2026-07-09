@@ -52,7 +52,7 @@ export interface OnboardingModule {
   description: string;
   duration: string;
   type: string;
-  content: string[];
+  content: string | string[];
 }
 
 export interface Milestone {
