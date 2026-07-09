@@ -165,9 +165,9 @@ export default function OnboardingGenerator() {
   const modules: OnboardingModule[] = useMemo(() => safeParse(plan?.modules, []), [plan]);
   const objectives: string[] = useMemo(() => safeParse(plan?.objectives, []), [plan]);
   const milestones: Milestone[] = useMemo(() => safeParse(plan?.milestones, []), [plan]);
-  const requiredReading: string[] = useMemo(() => safeParse(plan?.requiredReading, []), [plan]);
-  const handsOnTasks: string[] = useMemo(() => safeParse(plan?.handsOnTasks, []), [plan]);
-  const deliverables: string[] = useMemo(() => safeParse(plan?.deliverables, []), [plan]);
+  const requiredReading: any[] = useMemo(() => safeParse(plan?.requiredReading, []), [plan]);
+  const handsOnTasks: any[] = useMemo(() => safeParse(plan?.handsOnTasks, []), [plan]);
+  const deliverables: any[] = useMemo(() => safeParse(plan?.deliverables, []), [plan]);
 
   return (
     <div className="space-y-6">
@@ -538,7 +538,7 @@ export default function OnboardingGenerator() {
                                 className="flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
                               >
                                 <BookOpen className="h-4 w-4 text-teal-500 shrink-0" />
-                                <span className="truncate">{r}</span>
+                                <span className="truncate">{typeof r === 'string' ? r : r?.title || ''}</span>
                               </div>
                             ))}
                           </div>
@@ -574,7 +574,7 @@ export default function OnboardingGenerator() {
                                 }}
                               >
                                 <Square className="h-4 w-4 text-amber-500 shrink-0" />
-                                <span className="truncate">{t}</span>
+                                <span className="truncate">{typeof t === 'string' ? t : t?.title || ''}</span>
                               </div>
                             ))}
                           </div>
@@ -611,7 +611,7 @@ export default function OnboardingGenerator() {
                           className="flex items-center gap-2 text-sm p-3 rounded-xl bg-gradient-to-r from-emerald-500/5 to-teal-500/5 border border-emerald-500/10"
                         >
                           <FileText className="h-4 w-4 text-emerald-500 shrink-0" />
-                          <span className="truncate">{d}</span>
+                          <span className="truncate">{typeof d === 'string' ? d : d?.title || ''}</span>
                         </motion.div>
                       ))}
                     </div>
