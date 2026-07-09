@@ -29,7 +29,7 @@ export async function getZAI(): Promise<ZAI> {
             model = model.replace(/^models\//, ''); // Clean model prefix if present
 
             let systemInstruction = '';
-            const contents = [];
+            const contents: any[] = [];
 
             for (const msg of openaiBody.messages || []) {
               if (msg.role === 'system') {
@@ -162,20 +162,48 @@ export async function getZAI(): Promise<ZAI> {
   };
 
   // Instantiate ZAI directly to bypass loadConfig file check
-  return new ZAI(config);
+  return new (ZAI as any)(config);
 }
 
 export async function callLLM(
   messages: { role: string; content: string }[],
 ): Promise<string> {
+  const baseUrl = process.env.ZAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+  const isGroq = baseUrl.includes('groq.com');
+  const isGemini = baseUrl.includes('generativelanguage.googleapis.com');
+
+  const defaultModels = isGemini
+    ? [
+        'gemini-1.5-flash',
+        'gemini-1.5-pro',
+      ]
+    : isGroq
+    ? [
+        'llama-3.3-70b-versatile',
+        'llama-3.1-8b-instant',
+        'mixtral-8x7b-32768',
+        'gemma2-9b-it',
+      ]
+    : [
+        'openrouter/free',
+        'meta-llama/llama-3.3-70b-instruct:free',
+        'google/gemma-2-9b-it:free',
+        'qwen/qwen-2.5-72b-instruct:free',
+        'mistralai/mistral-7b-instruct:free',
+        'google/gemma-4-31b-it:free',
+        'liquid/lfm-2.5-1.2b-instruct:free',
+        'openai/gpt-oss-120b:free',
+        'nousresearch/hermes-3-llama-3.1-405b:free',
+        'meta-llama/llama-3.2-3b-instruct:free',
+        'openrouter/free'
+      ];
+
   const models = [
-    process.env.ZAI_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
-    'google/gemma-4-31b-it:free',
-    'liquid/lfm-2.5-1.2b-instruct:free',
-    'openai/gpt-oss-120b:free',
-    'nousresearch/hermes-3-llama-3.1-405b:free',
-    'meta-llama/llama-3.2-3b-instruct:free'
-  ].filter((v, i, a) => a.indexOf(v) === i);
+    process.env.ZAI_MODEL,
+    ...defaultModels
+  ].filter((v): v is string => !!v).filter((v, i, a) => a.indexOf(v) === i);
+
+
 
   let lastError: any = null;
 
@@ -210,13 +238,17 @@ export async function callLLM(
         lastError = err;
         const errMsg = err.message || '';
         
-        // If it's a rate limit (429), wait and retry
+        // If it's a rate limit (429), wait 1.5s and retry
         if (errMsg.includes('429') || errMsg.includes('rate-limit') || errMsg.includes('Rate Limit') || errMsg.includes('rate_limit')) {
-          console.warn(`Model ${modelName} is rate limited. Retrying in 3 seconds... (${retries} left)`);
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          console.warn(`Model ${modelName} is rate limited. Retrying in 1.5 seconds... (${retries} left)`);
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          retries--;
+        } else if (errMsg.includes('500') || errMsg.includes('502') || errMsg.includes('503') || errMsg.includes('504') || errMsg.includes('Bad Gateway') || errMsg.includes('Service Unavailable') || errMsg.includes('Internal Server Error')) {
+          console.warn(`Model ${modelName} returned a transient server error. Retrying in 1 second... (${retries} left)`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
           retries--;
         } else {
-          // If it's a 404 or other non-rate-limit error, fail immediately and try the next model
+          // If it's a 404 or other non-rate-limit/non-transient error, fail immediately and try the next model
           break;
         }
       }

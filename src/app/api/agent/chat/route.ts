@@ -408,13 +408,14 @@ ${TOOL_DESCRIPTIONS}
 2. When answering questions that require data (progress, training, assessments, etc.), use the available tools.
 3. When you need to use a tool, respond ONLY with a JSON object in this exact format (no markdown, no extra text):
    {"thought": "Brief reasoning about what tool to use and why", "tool": "tool_name", "args": {}}
-4. Do NOT include any other text when calling a tool — only the raw JSON object.
-5. After receiving tool results, provide a clear, well-formatted answer to the user's question.
-6. Use markdown formatting for better readability (headers, bullet points, bold text).
-7. If you don't know the answer or can't find relevant information, say so honestly.
-8. Always keep responses concise but informative.
-9. Reference specific data (scores, dates, module names) when available.
-10. If the user asks about something not related to onboarding, politely redirect them to onboarding topics.`;
+4. If you do NOT need to call a tool, respond with a direct, conversational natural language answer. Do NOT use JSON formatting.
+5. Do NOT include any other text when calling a tool — only the raw JSON object.
+6. After receiving tool results, provide a clear, well-formatted answer to the user's question.
+7. Use markdown formatting for better readability (headers, bullet points, bold text).
+8. If you don't know the answer or can't find relevant information, say so honestly.
+9. Always keep responses concise but informative.
+10. Reference specific data (scores, dates, module names) when available.
+11. If the user asks about something not related to onboarding, politely redirect them to onboarding topics.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -446,6 +447,29 @@ function parseToolCall(llmOutput: string): ToolCall | null {
     // Not valid JSON or not a tool call — that's fine, treat as normal response
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Clean final answer if the model outputted its thought inside JSON format
+// ---------------------------------------------------------------------------
+function cleanFinalAnswer(answer: string): string {
+  try {
+    let jsonStr = answer.trim();
+    const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+      jsonStr = codeBlockMatch[1].trim();
+    }
+    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed.thought && typeof parsed.thought === 'string') {
+        return parsed.response || parsed.message || parsed.thought;
+      }
+    }
+  } catch {
+    // Ignore and return original
+  }
+  return answer;
 }
 
 // ---------------------------------------------------------------------------
@@ -728,6 +752,9 @@ Join Date: ${employee.joinDate.toISOString().split('T')[0]}`;
     if (!finalAnswer || finalAnswer.trim().length === 0) {
       finalAnswer = "I wasn't able to generate a response. Please try rephrasing your question.";
     }
+
+    // Clean final answer if model output was wrapped in tool JSON structure (e.g. {"thought": "...", "tool": "none"})
+    finalAnswer = cleanFinalAnswer(finalAnswer);
 
     // 10. Store assistant response in conversation
     addConversationMessage(conversation, 'assistant', finalAnswer);
