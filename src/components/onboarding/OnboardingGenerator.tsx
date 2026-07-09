@@ -137,7 +137,7 @@ export default function OnboardingGenerator() {
     setPlan(null);
     try {
       const result = await api.onboarding.generate(selectedEmployee);
-      setPlan(result as TrainingPlan);
+      setPlan(result?.plan as TrainingPlan);
       toast.success('Onboarding plan generated successfully!');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to generate onboarding plan';
