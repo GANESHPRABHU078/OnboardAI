@@ -360,6 +360,178 @@ const generateCertificateCheck: ToolExecutor = async (employeeId) => {
 };
 
 // ---------------------------------------------------------------------------
+// Tool: get_onboarding_stats
+// ---------------------------------------------------------------------------
+const getOnboardingStats: ToolExecutor = async (employeeId, userId) => {
+  const user = await db.user.findUnique({ where: { id: userId }, select: { role: true } });
+  if (user?.role !== 'admin' && user?.role !== 'hr') {
+    return 'Error: You do not have permission to view onboarding statistics.';
+  }
+
+  const employees = await db.employee.findMany({
+    select: {
+      status: true,
+      department: { select: { name: true } },
+    },
+  });
+
+  const stats = {
+    total: employees.length,
+    onboarding: employees.filter((e) => e.status === 'onboarding').length,
+    active: employees.filter((e) => e.status === 'active').length,
+    completed: employees.filter((e) => e.status === 'completed').length,
+    inactive: employees.filter((e) => e.status === 'inactive').length,
+  };
+
+  const deptMap: Record<string, { total: number; onboarding: number }> = {};
+  for (const e of employees) {
+    const deptName = e.department?.name || 'Unassigned';
+    if (!deptMap[deptName]) {
+      deptMap[deptName] = { total: 0, onboarding: 0 };
+    }
+    deptMap[deptName].total++;
+    if (e.status === 'onboarding') {
+      deptMap[deptName].onboarding++;
+    }
+  }
+
+  return JSON.stringify({
+    summary: stats,
+    departments: deptMap,
+  });
+};
+
+// ---------------------------------------------------------------------------
+// Tool: get_compliance_report
+// ---------------------------------------------------------------------------
+const getComplianceReport: ToolExecutor = async (employeeId, userId) => {
+  const user = await db.user.findUnique({ where: { id: userId }, select: { role: true } });
+  if (user?.role !== 'admin' && user?.role !== 'hr') {
+    return 'Error: You do not have permission to view compliance reports.';
+  }
+
+  const employees = await db.employee.findMany({
+    where: { status: 'onboarding' },
+    include: {
+      progressRecords: true,
+      quizResults: true,
+      department: { select: { name: true } },
+    },
+  });
+
+  if (employees.length === 0) {
+    return JSON.stringify({
+      message: 'No employees are currently in the onboarding process.',
+      complianceRate: 100,
+      details: [],
+    });
+  }
+
+  const details = employees.map((e) => {
+    const totalModules = e.progressRecords.length;
+    const completedModules = e.progressRecords.filter((r) => r.status === 'completed').length;
+    const completionPercent = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
+
+    const quizCount = e.quizResults.length;
+    const avgQuizScore = quizCount > 0 
+      ? Math.round(e.quizResults.reduce((sum, q) => sum + q.score, 0) / quizCount) 
+      : null;
+
+    return {
+      employeeName: `${e.firstName} ${e.lastName}`,
+      department: e.department?.name || 'Unassigned',
+      completionPercent,
+      avgQuizScore,
+      status: e.status,
+    };
+  });
+
+  const totalCompletionPercent = details.reduce((sum, d) => sum + d.completionPercent, 0);
+  const overallComplianceRate = Math.round(totalCompletionPercent / employees.length);
+
+  return JSON.stringify({
+    overallComplianceRate,
+    onboardingCount: employees.length,
+    employeeDetails: details,
+  });
+};
+
+// ---------------------------------------------------------------------------
+// Tool: get_departments_attention
+// ---------------------------------------------------------------------------
+const getDepartmentsAttention: ToolExecutor = async (employeeId, userId) => {
+  const user = await db.user.findUnique({ where: { id: userId }, select: { role: true } });
+  if (user?.role !== 'admin' && user?.role !== 'hr') {
+    return 'Error: You do not have permission to view department attention reports.';
+  }
+
+  const departments = await db.department.findMany({
+    where: { isActive: true },
+    include: {
+      employees: {
+        include: {
+          progressRecords: true,
+          quizResults: true,
+        },
+      },
+    },
+  });
+
+  const report = departments.map((d) => {
+    const onboardingEmployees = d.employees.filter((e) => e.status === 'onboarding');
+    const totalOnboarding = onboardingEmployees.length;
+
+    if (totalOnboarding === 0) {
+      return {
+        department: d.name,
+        needsAttention: false,
+        reason: 'No employees currently onboarding.',
+        onboardingCount: 0,
+        avgCompletion: 100,
+      };
+    }
+
+    let totalModules = 0;
+    let completedModules = 0;
+    let totalScore = 0;
+    let quizCount = 0;
+
+    for (const e of onboardingEmployees) {
+      totalModules += e.progressRecords.length;
+      completedModules += e.progressRecords.filter((r) => r.status === 'completed').length;
+      
+      for (const q of e.quizResults) {
+        totalScore += q.score;
+        quizCount++;
+      }
+    }
+
+    const avgCompletion = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
+    const avgQuizScore = quizCount > 0 ? Math.round(totalScore / quizCount) : null;
+
+    const lowCompletion = avgCompletion < 50;
+    const lowQuiz = avgQuizScore !== null && avgQuizScore < 70;
+    const needsAttention = lowCompletion || lowQuiz;
+
+    return {
+      department: d.name,
+      needsAttention,
+      onboardingCount: totalOnboarding,
+      avgCompletion,
+      avgQuizScore,
+      reason: needsAttention 
+        ? `${lowCompletion ? 'Low module completion rate. ' : ''}${lowQuiz ? 'Low average assessment scores.' : ''}`
+        : 'Onboarding is progressing normally.',
+    };
+  });
+
+  return JSON.stringify({
+    departments: report,
+    attentionRequired: report.filter((r) => r.needsAttention),
+  });
+};
+
+// ---------------------------------------------------------------------------
 // Tool registry
 // ---------------------------------------------------------------------------
 const toolRegistry: Record<string, ToolExecutor> = {
@@ -370,6 +542,9 @@ const toolRegistry: Record<string, ToolExecutor> = {
   get_policies: getPolicies,
   get_next_task: getNextTask,
   generate_certificate_check: generateCertificateCheck,
+  get_onboarding_stats: getOnboardingStats,
+  get_compliance_report: getComplianceReport,
+  get_departments_attention: getDepartmentsAttention,
 };
 
 // ---------------------------------------------------------------------------
@@ -391,7 +566,15 @@ Available tools you can use:
 // ---------------------------------------------------------------------------
 // System prompt builder
 // ---------------------------------------------------------------------------
-function buildSystemPrompt(employeeContext: string, progressSummary: string): string {
+function buildSystemPrompt(employeeContext: string, progressSummary: string, employeeRole: string): string {
+  let capabilities = TOOL_DESCRIPTIONS;
+  if (employeeRole === 'admin' || employeeRole === 'hr') {
+    capabilities += `
+- get_onboarding_stats: [ADMIN/HR ONLY] Get onboarding statistics for all employees in the system, grouped by department. No arguments needed.
+- get_compliance_report: [ADMIN/HR ONLY] Generate a compliance report showing completion percentages and quiz scores of onboarding employees. No arguments needed.
+- get_departments_attention: [ADMIN/HR ONLY] Get a list of active departments, checking if any need attention based on completion rates or quiz scores. No arguments needed.`;
+  }
+
   return `You are OnboardAI Agent, an intelligent onboarding assistant for an enterprise platform. You help employees navigate their onboarding journey, answer questions about policies, track progress, and provide personalized guidance.
 
 ## Employee Context
@@ -401,7 +584,7 @@ ${employeeContext}
 ${progressSummary}
 
 ## Your Capabilities
-${TOOL_DESCRIPTIONS}
+${capabilities}
 
 ## Instructions
 1. Be helpful, friendly, and professional.
@@ -630,7 +813,7 @@ Join Date: ${employee.joinDate.toISOString().split('T')[0]}`;
     addConversationMessage(conversation, 'user', message);
 
     // 7. Build system prompt
-    const systemPrompt = buildSystemPrompt(employeeContext, progressSummary);
+    const systemPrompt = buildSystemPrompt(employeeContext, progressSummary, employeeRole);
 
     // 8. Build message history
     const messageHistory = buildMessageHistory(conversation);
